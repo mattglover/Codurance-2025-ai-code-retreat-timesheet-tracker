@@ -157,17 +157,17 @@ export class Database {
     });
   }
   
-  all(query: string, params?: any[]): any[] {
-  
-    let result: any[] = [];
-    this.db.all(query, params || [], (err, rows) => {
-      if (err) {
-        console.error('Query error:', err);
-        return [];
-      }
-      result = rows;
+  all(query: string, params?: any[]): Promise<any[]> {
+    return new Promise((resolve, reject) => {
+      this.db.all(query, params || [], (err, rows) => {
+        if (err) {
+          console.error('Query error:', err);
+          reject(err);
+        } else {
+          resolve(rows);
+        }
+      });
     });
-    return result; 
   }
   
   run(query: string, params?: any[]): Promise<any> {
@@ -187,18 +187,18 @@ export class Database {
     });
   }
   
- 
-  getEmployeeHours(employeeId: string, startDate: string, endDate: string): number {
+
+  async getEmployeeHours(employeeId: string, startDate: string, endDate: string): Promise<number> {
     const query = `
       SELECT SUM(billable_hours) as total
-      FROM time_entries 
-      WHERE employee_id = ? 
-      AND start_time >= ? 
+      FROM time_entries
+      WHERE employee_id = ?
+      AND start_time >= ?
       AND end_time <= ?
     `;
-    
- 
-    const result = this.get(query, [employeeId, startDate, endDate]);
+
+
+    const result = await this.get(query, [employeeId, startDate, endDate]);
     return result ? result.total : 0;
   }
 }

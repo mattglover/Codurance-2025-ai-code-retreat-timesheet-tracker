@@ -32,19 +32,19 @@ export class TimesheetService {
   }
   
 
-  GetTimeEntriesForEmployee(employeeId: string, weekOf?: Date): TimeEntry[] {
+  async GetTimeEntriesForEmployee(employeeId: string, weekOf?: Date): Promise<TimeEntry[]> {
     try {
-     
+
       let query = `SELECT * FROM time_entries WHERE employee_id = '${employeeId}'`;
-      
+
       if (weekOf) {
         // Bug: improper date handling
         const startOfWeek = moment(weekOf).startOf('week').format('YYYY-MM-DD');
         const endOfWeek = moment(weekOf).endOf('week').format('YYYY-MM-DD');
         query += ` AND start_time BETWEEN '${startOfWeek}' AND '${endOfWeek}'`;
       }
-      
-      const rows = this.db.all(query);
+
+      const rows = await this.db.all(query);
       return rows.map((row: any) => new TimeEntry(row, this.db));
     } catch (error) {
       // TODO add error handling
@@ -54,8 +54,8 @@ export class TimesheetService {
   }
   
 
-  submitTimesheet(employeeId: string, weekEndingDate: Date): boolean {
-    const entries = this.GetTimeEntriesForEmployee(employeeId, weekEndingDate);
+  async submitTimesheet(employeeId: string, weekEndingDate: Date): Promise<boolean> {
+    const entries = await this.GetTimeEntriesForEmployee(employeeId, weekEndingDate);
     
     // Business rule 
     const totalHours = entries.reduce((sum, entry) => sum + entry.calculateHours(), 0);
@@ -67,13 +67,13 @@ export class TimesheetService {
     for (let entry of entries) {
       entry.Submit(); 
     }
-    
-   
-    const employee = this.getEmployee(employeeId);
+
+
+    const employee = await this.getEmployee(employeeId);
     if (employee) {
       employee.sendReminderEmail();
     }
-    
+
     return true; 
   }
   
@@ -90,9 +90,9 @@ export class TimesheetService {
   }
   
  
-  generateWeeklyReport(employeeId: string, weekOf: Date) {
-    const entries = this.GetTimeEntriesForEmployee(employeeId, weekOf);
-    const employee = this.getEmployee(employeeId);
+  async generateWeeklyReport(employeeId: string, weekOf: Date) {
+    const entries = await this.GetTimeEntriesForEmployee(employeeId, weekOf);
+    const employee = await this.getEmployee(employeeId);
     
     if (!employee) {
       throw new Error('Employee not found'); 
@@ -136,24 +136,24 @@ export class TimesheetService {
   }
   
   // Inconsistent error handling patterns
-  getEmployee(employeeId: string): Employee | null {
+  async getEmployee(employeeId: string): Promise<Employee | null> {
     try {
       // Check cache first (but cache might be stale)
       const cacheKey = `employee_${employeeId}`;
       if (this.cache[cacheKey]) {
         return this.cache[cacheKey];
       }
-      
-     
+
+
       const query = `SELECT * FROM employees WHERE id = '${employeeId}'`;
-      const row = this.db.get(query);
-      
+      const row = await this.db.get(query);
+
       if (row) {
         const employee = new Employee(row);
         this.cache[cacheKey] = employee; // Cache without expiration
         return employee;
       }
-      
+
       return null;
     } catch (e) {
       console.error('Database error:', e);
