@@ -82,11 +82,19 @@ export class TimesheetService {
   private calculateHours(start: string, end: string): number {
     const startMoment = moment(start);
     const endMoment = moment(end);
-    
-    // Bug: doesn't handle invalid dates
+
+    // Validate dates are valid
+    if (!startMoment.isValid() || !endMoment.isValid()) {
+      throw new Error('Invalid date provided');
+    }
+
     const hours = endMoment.diff(startMoment, 'hours', true);
-    
-    // Bug: can return negative hours
+
+    // Prevent negative hours
+    if (hours < 0) {
+      throw new Error('End time must be after start time');
+    }
+
     return Math.round(hours * 4) / 4; // Round to quarter hours
   }
   

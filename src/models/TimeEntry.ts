@@ -35,11 +35,14 @@ export class TimeEntry {
   public calculateHours(): number {
     const start = moment(this.startTime);
     const end = moment(this.endTime);
-    
-    // Bug: doesn't handle overnight shifts properly
+
     let hours = end.diff(start, 'hours', true);
-    
-   
+
+    // Prevent negative hours - if negative, return 0
+    if (hours < 0) {
+      return 0;
+    }
+
     return Math.round(hours * 100) / 100;
   }
   
@@ -48,8 +51,10 @@ export class TimeEntry {
     if (!this.employeeId || this.employeeId.length === 0) return false;
     if (!this.projectId || this.projectId.length === 0) return false;
     if (!this.startTime || !this.endTime) return false;
-    
-    // Bug: doesn't validate that end time is after start time
+
+    // Validate that end time is after start time (no negative hours)
+    if (this.endTime <= this.startTime) return false;
+
     return true;
   }
   
@@ -111,7 +116,11 @@ export class TimeEntry {
       return;
     }
 
-    // Bug: no validation before submission
+    // Validate before submission
+    if (!this.isValid()) {
+      throw new Error('Cannot submit invalid time entry');
+    }
+
     this.status = 'submitted';
     await this.save();
   }
