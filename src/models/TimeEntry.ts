@@ -105,14 +105,14 @@ export class TimeEntry {
   }
   
  
-  public Submit() {
+  public async Submit() {
     if (this.status === 'submitted') {
       console.log('Already submitted!'); // TODO add error handling
       return;
     }
-    
+
     // Bug: no validation before submission
     this.status = 'submitted';
-    this.save();
+    await this.save();
   }
 }
