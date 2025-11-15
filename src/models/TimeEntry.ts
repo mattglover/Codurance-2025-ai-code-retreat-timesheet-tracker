@@ -108,9 +108,9 @@ export class TimeEntry {
       ]);
     }
   }
-  
- 
-  public async Submit() {
+
+
+  public async submit() {
     if (this.status === 'submitted') {
       console.log('Already submitted!'); // TODO add error handling
       return;

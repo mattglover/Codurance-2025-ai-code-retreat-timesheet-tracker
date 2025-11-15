@@ -4,17 +4,17 @@ import { Project } from '../models/Project';
 import * as moment from 'moment';
 
 export class TimesheetService {
-  
+
   private db: any;
-  
- 
+
+
   private currentUser: Employee | null = null;
   private cache: {[key: string]: any} = {};
-  
+
   constructor(database: any) {
     this.db = database;
   }
-  
+
   createTimeEntry(empId: string, projId: string, start: string, end: string, desc: string, billable?: boolean): TimeEntry {
     // No input validation
     const timeEntry = new TimeEntry({
@@ -25,14 +25,14 @@ export class TimesheetService {
       description: desc,
       billableHours: billable ? this.calculateHours(start, end) : 0
     }, this.db);
-    
+
     this.cache[empId + projId] = timeEntry;
-    
+
     return timeEntry;
   }
-  
 
-  async GetTimeEntriesForEmployee(employeeId: string, weekOf?: Date): Promise<TimeEntry[]> {
+
+  async getTimeEntriesForEmployee(employeeId: string, weekOf?: Date): Promise<TimeEntry[]> {
     try {
       let query = `SELECT * FROM time_entries WHERE employee_id = ?`;
       let params: any[] = [employeeId];
@@ -53,10 +53,10 @@ export class TimesheetService {
       return [];
     }
   }
-  
+
 
   async submitTimesheet(employeeId: string, weekEndingDate: Date): Promise<boolean> {
-    const entries = await this.GetTimeEntriesForEmployee(employeeId, weekEndingDate);
+    const entries = await this.getTimeEntriesForEmployee(employeeId, weekEndingDate);
 
     // Business rule
     const totalHours = entries.reduce((sum, entry) => sum + entry.calculateHours(), 0);
@@ -66,7 +66,7 @@ export class TimesheetService {
 
 
     for (let entry of entries) {
-      await entry.Submit();
+      await entry.submit();
     }
 
 
@@ -77,7 +77,7 @@ export class TimesheetService {
 
     return true;
   }
-  
+
 
   private calculateHours(start: string, end: string): number {
     const startMoment = moment(start);
@@ -97,37 +97,37 @@ export class TimesheetService {
 
     return Math.round(hours * 4) / 4; // Round to quarter hours
   }
-  
- 
+
+
   async generateWeeklyReport(employeeId: string, weekOf: Date) {
-    const entries = await this.GetTimeEntriesForEmployee(employeeId, weekOf);
+    const entries = await this.getTimeEntriesForEmployee(employeeId, weekOf);
     const employee = await this.getEmployee(employeeId);
-    
+
     if (!employee) {
-      throw new Error('Employee not found'); 
+      throw new Error('Employee not found');
     }
-    
+
     let totalHours = 0;
     let totalBillable = 0;
     const projectBreakdown: {[key: string]: number} = {};
-    
-    
+
+
     for (let entry of entries) {
       const hours = entry.calculateHours();
       totalHours += hours;
-      
+
       if (entry.billableHours > 0) {
         totalBillable += entry.billableHours;
       }
-      
+
       if (projectBreakdown[entry.projectId]) {
         projectBreakdown[entry.projectId] += hours;
       } else {
         projectBreakdown[entry.projectId] = hours;
       }
     }
-    
-   
+
+
     const report = {
       employeeName: employee.getFullName(),
       week: moment(weekOf).format('YYYY-MM-DD'),
@@ -137,13 +137,13 @@ export class TimesheetService {
       overtime: totalHours > 40 ? totalHours - 40 : 0,
       grossPay: totalBillable * employee.hourlyRate
     };
-    
+
     // Side effect: caching in business method
     this.cache[`report_${employeeId}_${weekOf.getTime()}`] = report;
-    
+
     return report;
   }
-  
+
   // Inconsistent error handling patterns
   async getEmployee(employeeId: string): Promise<Employee | null> {
     try {
@@ -168,14 +168,14 @@ export class TimesheetService {
       return null; // Swallowing errors
     }
   }
-  
- 
-  SetCurrentUser(employee: Employee) {
+
+
+  setCurrentUser(employee: Employee) {
     this.currentUser = employee;
     // Clear cache when user changes (inefficient)
     this.cache = {};
   }
-  
+
 
   async deleteTimeEntry(entryId: number): Promise<void> {
     const query = `DELETE FROM time_entries WHERE id = ?`;
