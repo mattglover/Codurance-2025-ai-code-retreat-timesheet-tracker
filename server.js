@@ -122,12 +122,16 @@ app.get('/api/timeentries', (req, res) => {
   let query = `SELECT * FROM time_entries WHERE employee_id = '${employee}'`;
   
   if (week) {
-    // Bug: improper date handling
+    // Calculate week start (Sunday) and end (Saturday)
     const weekDate = new Date(week);
-    const startOfWeek = new Date(weekDate.getFullYear(), weekDate.getMonth(), weekDate.getDate() - weekDate.getDay());
+    const startOfWeek = new Date(weekDate);
+    startOfWeek.setDate(weekDate.getDate() - weekDate.getDay());
+    startOfWeek.setHours(0, 0, 0, 0); // Beginning of day
+
     const endOfWeek = new Date(startOfWeek);
-    endOfWeek.setDate(endOfWeek.getDate() + 6);
-    
+    endOfWeek.setDate(startOfWeek.getDate() + 6);
+    endOfWeek.setHours(23, 59, 59, 999); // End of day
+
     query += ` AND start_time >= '${startOfWeek.toISOString()}' AND start_time <= '${endOfWeek.toISOString()}'`;
   }
   
@@ -191,12 +195,17 @@ app.post('/api/timesheet/submit', (req, res) => {
   
   // Business logic in controller
   const query = `UPDATE time_entries SET status = 'submitted' WHERE employee_id = ? AND start_time >= ? AND start_time <= ?`;
-  
+
+  // Calculate week start (Sunday) and end (Saturday)
   const weekDate = new Date(week);
-  const startOfWeek = new Date(weekDate.getFullYear(), weekDate.getMonth(), weekDate.getDate() - weekDate.getDay());
+  const startOfWeek = new Date(weekDate);
+  startOfWeek.setDate(weekDate.getDate() - weekDate.getDay());
+  startOfWeek.setHours(0, 0, 0, 0); // Beginning of day
+
   const endOfWeek = new Date(startOfWeek);
-  endOfWeek.setDate(endOfWeek.getDate() + 6);
-  
+  endOfWeek.setDate(startOfWeek.getDate() + 6);
+  endOfWeek.setHours(23, 59, 59, 999); // End of day
+
   db.run(query, [employeeId, startOfWeek.toISOString(), endOfWeek.toISOString()], function(err) {
     if (err) {
       console.error('Submit error:', err);
