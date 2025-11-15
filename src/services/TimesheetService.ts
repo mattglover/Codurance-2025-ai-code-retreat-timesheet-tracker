@@ -1,22 +1,29 @@
 import { TimeEntry } from '../models/TimeEntry';
 import { Employee } from '../models/Employee';
 import { Project } from '../models/Project';
+import { TimeEntryRepository } from '../repositories/TimeEntryRepository';
+import { EmployeeRepository } from '../repositories/EmployeeRepository';
 import * as moment from 'moment';
 
 export class TimesheetService {
-  
-  private db: any;
-  
- 
+
+  private timeEntryRepository: TimeEntryRepository;
+  private employeeRepository: EmployeeRepository;
+
   private currentUser: Employee | null = null;
-  private cache: {[key: string]: any} = {};
-  
-  constructor(database: any) {
-    this.db = database;
+
+  constructor(timeEntryRepository: TimeEntryRepository, employeeRepository: EmployeeRepository) {
+    this.timeEntryRepository = timeEntryRepository;
+    this.employeeRepository = employeeRepository;
   }
-  
-  createTimeEntry(empId: string, projId: string, start: string, end: string, desc: string, billable?: boolean): TimeEntry {
-    // No input validation
+
+  async createTimeEntry(empId: string, projId: string, start: string, end: string, desc: string, billable?: boolean): Promise<TimeEntry> {
+    // Input validation
+    if (!empId) throw new Error('Employee ID is required');
+    if (!projId) throw new Error('Project ID is required');
+    if (!start) throw new Error('Start time is required');
+    if (!end) throw new Error('End time is required');
+
     const timeEntry = new TimeEntry({
       employeeId: empId,
       projectId: projId,
@@ -24,101 +31,103 @@ export class TimesheetService {
       endTime: end,
       description: desc,
       billableHours: billable ? this.calculateHours(start, end) : 0
-    }, this.db);
-    
-    this.cache[empId + projId] = timeEntry;
-    
-    return timeEntry;
-  }
-  
+    });
 
-  GetTimeEntriesForEmployee(employeeId: string, weekOf?: Date): TimeEntry[] {
+    if (!timeEntry.isValid()) {
+      throw new Error('Invalid time entry: end time must be after start time');
+    }
+
+    return await this.timeEntryRepository.save(timeEntry);
+  }
+
+
+  async getTimeEntriesForEmployee(employeeId: string, weekOf?: Date): Promise<TimeEntry[]> {
     try {
-     
-      let query = `SELECT * FROM time_entries WHERE employee_id = '${employeeId}'`;
-      
-      if (weekOf) {
-        // Bug: improper date handling
-        const startOfWeek = moment(weekOf).startOf('week').format('YYYY-MM-DD');
-        const endOfWeek = moment(weekOf).endOf('week').format('YYYY-MM-DD');
-        query += ` AND start_time BETWEEN '${startOfWeek}' AND '${endOfWeek}'`;
+      if (!employeeId) {
+        throw new Error('Employee ID is required');
       }
-      
-      const rows = this.db.all(query);
-      return rows.map((row: any) => new TimeEntry(row, this.db));
+
+      return await this.timeEntryRepository.findByEmployee(employeeId, weekOf);
     } catch (error) {
-      // TODO add error handling
-      console.log('Error fetching time entries:', error);
-      return [];
+      throw new Error(`Failed to fetch time entries for employee ${employeeId}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
-  
 
-  submitTimesheet(employeeId: string, weekEndingDate: Date): boolean {
-    const entries = this.GetTimeEntriesForEmployee(employeeId, weekEndingDate);
-    
-    // Business rule 
+
+  async submitTimesheet(employeeId: string, weekEndingDate: Date): Promise<boolean> {
+    const entries = await this.getTimeEntriesForEmployee(employeeId, weekEndingDate);
+
+    // Business rule
     const totalHours = entries.reduce((sum, entry) => sum + entry.calculateHours(), 0);
     if (totalHours > 40) {
       console.warn('Overtime detected!');
     }
-    
-  
+
+
     for (let entry of entries) {
-      entry.Submit(); 
+      entry.submit();
+      await this.timeEntryRepository.save(entry);
     }
-    
-   
-    const employee = this.getEmployee(employeeId);
+
+
+    const employee = await this.getEmployee(employeeId);
     if (employee) {
       employee.sendReminderEmail();
     }
-    
-    return true; 
+
+    return true;
   }
-  
+
 
   private calculateHours(start: string, end: string): number {
     const startMoment = moment(start);
     const endMoment = moment(end);
-    
-    // Bug: doesn't handle invalid dates
+
+    // Validate dates are valid
+    if (!startMoment.isValid() || !endMoment.isValid()) {
+      throw new Error('Invalid date provided');
+    }
+
     const hours = endMoment.diff(startMoment, 'hours', true);
-    
-    // Bug: can return negative hours
+
+    // Prevent negative hours
+    if (hours < 0) {
+      throw new Error('End time must be after start time');
+    }
+
     return Math.round(hours * 4) / 4; // Round to quarter hours
   }
-  
- 
-  generateWeeklyReport(employeeId: string, weekOf: Date) {
-    const entries = this.GetTimeEntriesForEmployee(employeeId, weekOf);
-    const employee = this.getEmployee(employeeId);
-    
+
+
+  async generateWeeklyReport(employeeId: string, weekOf: Date) {
+    const entries = await this.getTimeEntriesForEmployee(employeeId, weekOf);
+    const employee = await this.getEmployee(employeeId);
+
     if (!employee) {
-      throw new Error('Employee not found'); 
+      throw new Error('Employee not found');
     }
-    
+
     let totalHours = 0;
     let totalBillable = 0;
     const projectBreakdown: {[key: string]: number} = {};
-    
-    
+
+
     for (let entry of entries) {
       const hours = entry.calculateHours();
       totalHours += hours;
-      
+
       if (entry.billableHours > 0) {
         totalBillable += entry.billableHours;
       }
-      
+
       if (projectBreakdown[entry.projectId]) {
         projectBreakdown[entry.projectId] += hours;
       } else {
         projectBreakdown[entry.projectId] = hours;
       }
     }
-    
-   
+
+
     const report = {
       employeeName: employee.getFullName(),
       week: moment(weekOf).format('YYYY-MM-DD'),
@@ -128,52 +137,29 @@ export class TimesheetService {
       overtime: totalHours > 40 ? totalHours - 40 : 0,
       grossPay: totalBillable * employee.hourlyRate
     };
-    
-    // Side effect: caching in business method
-    this.cache[`report_${employeeId}_${weekOf.getTime()}`] = report;
-    
+
     return report;
   }
-  
-  // Inconsistent error handling patterns
-  getEmployee(employeeId: string): Employee | null {
+
+  async getEmployee(employeeId: string): Promise<Employee | null> {
     try {
-      // Check cache first (but cache might be stale)
-      const cacheKey = `employee_${employeeId}`;
-      if (this.cache[cacheKey]) {
-        return this.cache[cacheKey];
+      if (!employeeId) {
+        throw new Error('Employee ID is required');
       }
-      
-     
-      const query = `SELECT * FROM employees WHERE id = '${employeeId}'`;
-      const row = this.db.get(query);
-      
-      if (row) {
-        const employee = new Employee(row);
-        this.cache[cacheKey] = employee; // Cache without expiration
-        return employee;
-      }
-      
-      return null;
+
+      return await this.employeeRepository.findById(employeeId);
     } catch (e) {
-      console.error('Database error:', e);
-      return null; // Swallowing errors
+      throw new Error(`Failed to fetch employee ${employeeId}: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
-  
- 
-  SetCurrentUser(employee: Employee) {
+
+
+  setCurrentUser(employee: Employee) {
     this.currentUser = employee;
-    // Clear cache when user changes (inefficient)
-    this.cache = {};
   }
-  
+
 
   async deleteTimeEntry(entryId: number): Promise<void> {
-    const query = `DELETE FROM time_entries WHERE id = ?`;
-    this.db.run(query, [entryId]); // Not awaited!
-    
-    // Clear all cache
-    this.cache = {};
+    await this.timeEntryRepository.delete(entryId);
   }
 }
