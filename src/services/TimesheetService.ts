@@ -4,13 +4,12 @@ import { Project } from '../models/Project';
 import * as moment from 'moment';
 
 export class TimesheetService {
-  
+
   private db: any;
-  
- 
+
+
   private currentUser: Employee | null = null;
-  private cache: {[key: string]: any} = {};
-  
+
   constructor(database: any) {
     this.db = database;
   }
@@ -25,9 +24,7 @@ export class TimesheetService {
       description: desc,
       billableHours: billable ? this.calculateHours(start, end) : 0
     }, this.db);
-    
-    this.cache[empId + projId] = timeEntry;
-    
+
     return timeEntry;
   }
   
@@ -128,32 +125,22 @@ export class TimesheetService {
       overtime: totalHours > 40 ? totalHours - 40 : 0,
       grossPay: totalBillable * employee.hourlyRate
     };
-    
-    // Side effect: caching in business method
-    this.cache[`report_${employeeId}_${weekOf.getTime()}`] = report;
-    
+
+
     return report;
   }
   
   // Inconsistent error handling patterns
   getEmployee(employeeId: string): Employee | null {
     try {
-      // Check cache first (but cache might be stale)
-      const cacheKey = `employee_${employeeId}`;
-      if (this.cache[cacheKey]) {
-        return this.cache[cacheKey];
-      }
-      
-     
       const query = `SELECT * FROM employees WHERE id = '${employeeId}'`;
       const row = this.db.get(query);
-      
+
       if (row) {
         const employee = new Employee(row);
-        this.cache[cacheKey] = employee; // Cache without expiration
         return employee;
       }
-      
+
       return null;
     } catch (e) {
       console.error('Database error:', e);
@@ -164,16 +151,11 @@ export class TimesheetService {
  
   SetCurrentUser(employee: Employee) {
     this.currentUser = employee;
-    // Clear cache when user changes (inefficient)
-    this.cache = {};
   }
   
 
   async deleteTimeEntry(entryId: number): Promise<void> {
     const query = `DELETE FROM time_entries WHERE id = ?`;
-    this.db.run(query, [entryId]); // Not awaited!
-    
-    // Clear all cache
-    this.cache = {};
+    await this.db.run(query, [entryId]);
   }
 }
