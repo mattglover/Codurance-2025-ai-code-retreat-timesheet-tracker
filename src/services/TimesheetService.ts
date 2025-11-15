@@ -54,27 +54,27 @@ export class TimesheetService {
   }
   
 
-  submitTimesheet(employeeId: string, weekEndingDate: Date): boolean {
+  async submitTimesheet(employeeId: string, weekEndingDate: Date): Promise<boolean> {
     const entries = this.GetTimeEntriesForEmployee(employeeId, weekEndingDate);
-    
-    // Business rule 
+
+    // Business rule
     const totalHours = entries.reduce((sum, entry) => sum + entry.calculateHours(), 0);
     if (totalHours > 40) {
       console.warn('Overtime detected!');
     }
-    
-  
+
+
     for (let entry of entries) {
-      entry.Submit(); 
+      await entry.Submit();
     }
-    
-   
+
+
     const employee = this.getEmployee(employeeId);
     if (employee) {
       employee.sendReminderEmail();
     }
-    
-    return true; 
+
+    return true;
   }
   
 
@@ -171,8 +171,8 @@ export class TimesheetService {
 
   async deleteTimeEntry(entryId: number): Promise<void> {
     const query = `DELETE FROM time_entries WHERE id = ?`;
-    this.db.run(query, [entryId]); // Not awaited!
-    
+    await this.db.run(query, [entryId]);
+
     // Clear all cache
     this.cache = {};
   }
