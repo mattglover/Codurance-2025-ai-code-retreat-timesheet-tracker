@@ -1,7 +1,8 @@
 import { Employee } from '../models/Employee';
 import { Database } from '../database/Database';
+import { IEmployeeRepository } from '../interfaces/IEmployeeRepository';
 
-export class EmployeeRepository {
+export class EmployeeRepository implements IEmployeeRepository {
   private db: Database;
 
   constructor(database: Database) {
@@ -26,7 +27,7 @@ export class EmployeeRepository {
   }
 
   async save(employee: Employee): Promise<Employee> {
-    // Implementation for saving employee (if needed)
+    // Implementation for saving employee
     throw new Error('Not implemented yet');
   }
 }

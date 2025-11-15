@@ -1,7 +1,8 @@
 import { TimeEntry } from '../models/TimeEntry';
 import { Database } from '../database/Database';
+import { ITimeEntryRepository } from '../interfaces/ITimeEntryRepository';
 
-export class TimeEntryRepository {
+export class TimeEntryRepository implements ITimeEntryRepository {
   private db: Database;
 
   constructor(database: Database) {
