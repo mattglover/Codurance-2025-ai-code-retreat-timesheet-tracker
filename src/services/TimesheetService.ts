@@ -16,7 +16,12 @@ export class TimesheetService {
   }
 
   createTimeEntry(empId: string, projId: string, start: string, end: string, desc: string, billable?: boolean): TimeEntry {
-    // No input validation
+    // Input validation
+    if (!empId) throw new Error('Employee ID is required');
+    if (!projId) throw new Error('Project ID is required');
+    if (!start) throw new Error('Start time is required');
+    if (!end) throw new Error('End time is required');
+
     const timeEntry = new TimeEntry({
       employeeId: empId,
       projectId: projId,
@@ -26,6 +31,10 @@ export class TimesheetService {
       billableHours: billable ? this.calculateHours(start, end) : 0
     }, this.db);
 
+    if (!timeEntry.isValid()) {
+      throw new Error('Invalid time entry: end time must be after start time');
+    }
+
     this.cache[empId + projId] = timeEntry;
 
     return timeEntry;
@@ -34,6 +43,10 @@ export class TimesheetService {
 
   async getTimeEntriesForEmployee(employeeId: string, weekOf?: Date): Promise<TimeEntry[]> {
     try {
+      if (!employeeId) {
+        throw new Error('Employee ID is required');
+      }
+
       let query = `SELECT * FROM time_entries WHERE employee_id = ?`;
       let params: any[] = [employeeId];
 
@@ -48,9 +61,7 @@ export class TimesheetService {
       const rows = await this.db.all(query, params);
       return rows.map((row: any) => new TimeEntry(row, this.db));
     } catch (error) {
-      // TODO add error handling
-      console.log('Error fetching time entries:', error);
-      return [];
+      throw new Error(`Failed to fetch time entries for employee ${employeeId}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -147,6 +158,10 @@ export class TimesheetService {
   // Inconsistent error handling patterns
   async getEmployee(employeeId: string): Promise<Employee | null> {
     try {
+      if (!employeeId) {
+        throw new Error('Employee ID is required');
+      }
+
       // Check cache first (but cache might be stale)
       const cacheKey = `employee_${employeeId}`;
       if (this.cache[cacheKey]) {
@@ -164,8 +179,7 @@ export class TimesheetService {
 
       return null;
     } catch (e) {
-      console.error('Database error:', e);
-      return null; // Swallowing errors
+      throw new Error(`Failed to fetch employee ${employeeId}: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
 
