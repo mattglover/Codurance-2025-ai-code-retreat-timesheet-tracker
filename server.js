@@ -172,13 +172,41 @@ app.post('/api/timeentries', (req, res) => {
   });
 });
 
+// Update time entry
+app.put('/api/timeentries/:id', (req, res) => {
+  const entryId = req.params.id;
+  const { projectId, startTime, endTime, description, billableHours, status } = req.body;
+
+  const query = `
+    UPDATE time_entries
+    SET project_id = ?, start_time = ?, end_time = ?, description = ?,
+        billable_hours = ?, status = ?, last_modified = ?
+    WHERE id = ?
+  `;
+
+  const now = new Date().toISOString();
+
+  db.run(query, [projectId, startTime, endTime, description, billableHours || 0, status || 'draft', now, entryId], function(err) {
+    if (err) {
+      console.error('Update error:', err);
+      res.status(400).json({ error: 'Failed to update time entry' });
+    } else {
+      if (this.changes === 0) {
+        res.status(404).json({ error: 'Time entry not found' });
+      } else {
+        res.json({ success: true, id: entryId });
+      }
+    }
+  });
+});
+
 // Delete without authorization
 app.delete('/api/timeentries/:id', (req, res) => {
   const entryId = req.params.id;
-  
+
   // No authorization check
   const query = `DELETE FROM time_entries WHERE id = ?`;
-  
+
   db.run(query, [entryId], function(err) {
     if (err) {
       console.error('Delete error:', err);

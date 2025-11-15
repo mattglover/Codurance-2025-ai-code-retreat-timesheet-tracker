@@ -1,5 +1,6 @@
 // List component with poor performance and structure
 import React, { useState } from 'react';
+import EditTimeEntryModal from './EditTimeEntryModal';
 
 interface TimeEntry {
   id: number;
@@ -125,9 +126,39 @@ const TimeEntryList: React.FC<Props> = ({ entries, onUpdate, projects, employees
     }
   };
   
+  const editingEntry = editingId !== null ? entries.find(e => e.id === editingId) : null;
+
+  const handleSaveEdit = async (updatedEntry: any) => {
+    try {
+      const response = await fetch(`${(window as any).apiBaseUrl}/timeentries/${updatedEntry.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedEntry)
+      });
+
+      if (response.ok) {
+        // Reload page to refresh data
+        window.location.reload();
+      } else {
+        alert('Failed to update time entry');
+      }
+    } catch (err) {
+      console.error('Update error:', err);
+      alert('Error updating time entry');
+    }
+  };
+
   return (
     <div>
-   
+      {editingEntry && (
+        <EditTimeEntryModal
+          entry={editingEntry}
+          projects={projects}
+          onSave={handleSaveEdit}
+          onCancel={() => setEditingId(null)}
+        />
+      )}
+
       <div style={{marginBottom: '15px'}}>
         <span>Sort by: </span>
         <select 
