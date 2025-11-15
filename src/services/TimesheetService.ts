@@ -9,7 +9,6 @@ export class TimesheetService {
 
 
   private currentUser: Employee | null = null;
-  private cache: {[key: string]: any} = {};
 
   constructor(database: any) {
     this.db = database;
@@ -34,8 +33,6 @@ export class TimesheetService {
     if (!timeEntry.isValid()) {
       throw new Error('Invalid time entry: end time must be after start time');
     }
-
-    this.cache[empId + projId] = timeEntry;
 
     return timeEntry;
   }
@@ -149,9 +146,6 @@ export class TimesheetService {
       grossPay: totalBillable * employee.hourlyRate
     };
 
-    // Side effect: caching in business method
-    this.cache[`report_${employeeId}_${weekOf.getTime()}`] = report;
-
     return report;
   }
 
@@ -162,18 +156,11 @@ export class TimesheetService {
         throw new Error('Employee ID is required');
       }
 
-      // Check cache first (but cache might be stale)
-      const cacheKey = `employee_${employeeId}`;
-      if (this.cache[cacheKey]) {
-        return this.cache[cacheKey];
-      }
-
       const query = `SELECT * FROM employees WHERE id = ?`;
       const row = await this.db.get(query, [employeeId]);
 
       if (row) {
         const employee = new Employee(row);
-        this.cache[cacheKey] = employee; // Cache without expiration
         return employee;
       }
 
@@ -186,16 +173,11 @@ export class TimesheetService {
 
   setCurrentUser(employee: Employee) {
     this.currentUser = employee;
-    // Clear cache when user changes (inefficient)
-    this.cache = {};
   }
 
 
   async deleteTimeEntry(entryId: number): Promise<void> {
     const query = `DELETE FROM time_entries WHERE id = ?`;
     await this.db.run(query, [entryId]);
-
-    // Clear all cache
-    this.cache = {};
   }
 }
