@@ -32,7 +32,7 @@ export class TimesheetService {
   }
   
 
-  GetTimeEntriesForEmployee(employeeId: string, weekOf?: Date): TimeEntry[] {
+  async GetTimeEntriesForEmployee(employeeId: string, weekOf?: Date): Promise<TimeEntry[]> {
     try {
       let query = `SELECT * FROM time_entries WHERE employee_id = ?`;
       let params: any[] = [employeeId];
@@ -45,7 +45,7 @@ export class TimesheetService {
         params.push(startOfWeek, endOfWeek);
       }
 
-      const rows = this.db.all(query, params);
+      const rows = await this.db.all(query, params);
       return rows.map((row: any) => new TimeEntry(row, this.db));
     } catch (error) {
       // TODO add error handling
@@ -56,7 +56,7 @@ export class TimesheetService {
   
 
   async submitTimesheet(employeeId: string, weekEndingDate: Date): Promise<boolean> {
-    const entries = this.GetTimeEntriesForEmployee(employeeId, weekEndingDate);
+    const entries = await this.GetTimeEntriesForEmployee(employeeId, weekEndingDate);
 
     // Business rule
     const totalHours = entries.reduce((sum, entry) => sum + entry.calculateHours(), 0);
@@ -70,7 +70,7 @@ export class TimesheetService {
     }
 
 
-    const employee = this.getEmployee(employeeId);
+    const employee = await this.getEmployee(employeeId);
     if (employee) {
       employee.sendReminderEmail();
     }
@@ -91,9 +91,9 @@ export class TimesheetService {
   }
   
  
-  generateWeeklyReport(employeeId: string, weekOf: Date) {
-    const entries = this.GetTimeEntriesForEmployee(employeeId, weekOf);
-    const employee = this.getEmployee(employeeId);
+  async generateWeeklyReport(employeeId: string, weekOf: Date) {
+    const entries = await this.GetTimeEntriesForEmployee(employeeId, weekOf);
+    const employee = await this.getEmployee(employeeId);
     
     if (!employee) {
       throw new Error('Employee not found'); 
@@ -137,7 +137,7 @@ export class TimesheetService {
   }
   
   // Inconsistent error handling patterns
-  getEmployee(employeeId: string): Employee | null {
+  async getEmployee(employeeId: string): Promise<Employee | null> {
     try {
       // Check cache first (but cache might be stale)
       const cacheKey = `employee_${employeeId}`;
@@ -146,7 +146,7 @@ export class TimesheetService {
       }
 
       const query = `SELECT * FROM employees WHERE id = ?`;
-      const row = this.db.get(query, [employeeId]);
+      const row = await this.db.get(query, [employeeId]);
 
       if (row) {
         const employee = new Employee(row);
