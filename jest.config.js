@@ -1,20 +1,21 @@
 module.exports = {
   testEnvironment: 'node',
   roots: ['<rootDir>/tests'],
-  testMatch: ['**/*.test.js'],
+  testMatch: ['**/*.test.js', '**/*.test.ts'],
   collectCoverageFrom: [
+    'src/**/*.ts',
     'server.js',
     'public/app.js',
-    '!**/node_modules/**'
+    '!**/node_modules/**',
+    '!src/index.ts'
   ],
   coverageThreshold: {
     global: {
-      branches: 10,
-      functions: 10,
-      lines: 10,
-      statements: 10
+      branches: 60,
+      functions: 70,
+      lines: 70,
+      statements: 70
     }
   },
-  // Intentionally low coverage threshold for legacy code challenge
   setupFilesAfterEnv: []
 };
