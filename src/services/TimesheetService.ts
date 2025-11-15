@@ -16,7 +16,12 @@ export class TimesheetService {
   }
   
   createTimeEntry(empId: string, projId: string, start: string, end: string, desc: string, billable?: boolean): TimeEntry {
-    // No input validation
+    // Input validation
+    if (!empId) throw new Error('Employee ID is required');
+    if (!projId) throw new Error('Project ID is required');
+    if (!start) throw new Error('Start time is required');
+    if (!end) throw new Error('End time is required');
+
     const timeEntry = new TimeEntry({
       employeeId: empId,
       projectId: projId,
@@ -25,31 +30,36 @@ export class TimesheetService {
       description: desc,
       billableHours: billable ? this.calculateHours(start, end) : 0
     }, this.db);
-    
+
+    if (!timeEntry.isValid()) {
+      throw new Error('Invalid time entry: end time must be after start time');
+    }
+
     this.cache[empId + projId] = timeEntry;
-    
+
     return timeEntry;
   }
   
 
   GetTimeEntriesForEmployee(employeeId: string, weekOf?: Date): TimeEntry[] {
     try {
-     
+      if (!employeeId) {
+        throw new Error('Employee ID is required');
+      }
+
       let query = `SELECT * FROM time_entries WHERE employee_id = '${employeeId}'`;
-      
+
       if (weekOf) {
         // Bug: improper date handling
         const startOfWeek = moment(weekOf).startOf('week').format('YYYY-MM-DD');
         const endOfWeek = moment(weekOf).endOf('week').format('YYYY-MM-DD');
         query += ` AND start_time BETWEEN '${startOfWeek}' AND '${endOfWeek}'`;
       }
-      
+
       const rows = this.db.all(query);
       return rows.map((row: any) => new TimeEntry(row, this.db));
     } catch (error) {
-      // TODO add error handling
-      console.log('Error fetching time entries:', error);
-      return [];
+      throw new Error(`Failed to fetch time entries for employee ${employeeId}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
   
@@ -138,26 +148,29 @@ export class TimesheetService {
   // Inconsistent error handling patterns
   getEmployee(employeeId: string): Employee | null {
     try {
+      if (!employeeId) {
+        throw new Error('Employee ID is required');
+      }
+
       // Check cache first (but cache might be stale)
       const cacheKey = `employee_${employeeId}`;
       if (this.cache[cacheKey]) {
         return this.cache[cacheKey];
       }
-      
-     
+
+
       const query = `SELECT * FROM employees WHERE id = '${employeeId}'`;
       const row = this.db.get(query);
-      
+
       if (row) {
         const employee = new Employee(row);
         this.cache[cacheKey] = employee; // Cache without expiration
         return employee;
       }
-      
+
       return null;
     } catch (e) {
-      console.error('Database error:', e);
-      return null; // Swallowing errors
+      throw new Error(`Failed to fetch employee ${employeeId}: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
   

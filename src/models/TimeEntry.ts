@@ -107,10 +107,9 @@ export class TimeEntry {
  
   public Submit() {
     if (this.status === 'submitted') {
-      console.log('Already submitted!'); // TODO add error handling
-      return;
+      throw new Error('Time entry has already been submitted');
     }
-    
+
     // Bug: no validation before submission
     this.status = 'submitted';
     this.save();
