@@ -34,17 +34,18 @@ export class TimesheetService {
 
   GetTimeEntriesForEmployee(employeeId: string, weekOf?: Date): TimeEntry[] {
     try {
-     
-      let query = `SELECT * FROM time_entries WHERE employee_id = '${employeeId}'`;
-      
+      let query = `SELECT * FROM time_entries WHERE employee_id = ?`;
+      let params: any[] = [employeeId];
+
       if (weekOf) {
         // Bug: improper date handling
         const startOfWeek = moment(weekOf).startOf('week').format('YYYY-MM-DD');
         const endOfWeek = moment(weekOf).endOf('week').format('YYYY-MM-DD');
-        query += ` AND start_time BETWEEN '${startOfWeek}' AND '${endOfWeek}'`;
+        query += ` AND start_time BETWEEN ? AND ?`;
+        params.push(startOfWeek, endOfWeek);
       }
-      
-      const rows = this.db.all(query);
+
+      const rows = this.db.all(query, params);
       return rows.map((row: any) => new TimeEntry(row, this.db));
     } catch (error) {
       // TODO add error handling
@@ -143,17 +144,16 @@ export class TimesheetService {
       if (this.cache[cacheKey]) {
         return this.cache[cacheKey];
       }
-      
-     
-      const query = `SELECT * FROM employees WHERE id = '${employeeId}'`;
-      const row = this.db.get(query);
-      
+
+      const query = `SELECT * FROM employees WHERE id = ?`;
+      const row = this.db.get(query, [employeeId]);
+
       if (row) {
         const employee = new Employee(row);
         this.cache[cacheKey] = employee; // Cache without expiration
         return employee;
       }
-      
+
       return null;
     } catch (e) {
       console.error('Database error:', e);
