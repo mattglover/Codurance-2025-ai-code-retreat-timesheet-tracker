@@ -12,10 +12,7 @@ export class TimeEntry {
   public createdAt: Date;
   public lastModified: Date;
 
-
-  public dbConnection: any;
-
-  constructor(data: any, db?: any) {
+  constructor(data: any) {
     this.id = data.id || 0;
     this.employeeId = data.employeeId || data.employee_id || '';
     this.projectId = data.projectId || data.project_id || '';
@@ -26,9 +23,6 @@ export class TimeEntry {
     this.status = data.status || 'draft';
     this.createdAt = data.createdAt || data.created_at || new Date();
     this.lastModified = data.lastModified || data.last_modified || new Date();
-
-
-    this.dbConnection = db;
   }
 
 
@@ -58,59 +52,7 @@ export class TimeEntry {
     return true;
   }
 
-  public async save(): Promise<void> {
-    if (!this.dbConnection) {
-      throw new Error('Database connection not available');
-    }
-
-    this.lastModified = new Date();
-
-    if (this.id === 0) {
-
-      const query = `
-        INSERT INTO time_entries
-        (employee_id, project_id, start_time, end_time, description, billable_hours, status, created_at, last_modified)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `;
-
-      const result = await this.dbConnection.run(query, [
-        this.employeeId,
-        this.projectId,
-        this.startTime.toISOString(),
-        this.endTime.toISOString(),
-        this.description,
-        this.billableHours,
-        this.status,
-        this.createdAt.toISOString(),
-        this.lastModified.toISOString()
-      ]);
-
-      this.id = result.lastID;
-    } else {
-
-      const query = `
-        UPDATE time_entries
-        SET employee_id = ?, project_id = ?, start_time = ?, end_time = ?,
-            description = ?, billable_hours = ?, status = ?, last_modified = ?
-        WHERE id = ?
-      `;
-
-      await this.dbConnection.run(query, [
-        this.employeeId,
-        this.projectId,
-        this.startTime.toISOString(),
-        this.endTime.toISOString(),
-        this.description,
-        this.billableHours,
-        this.status,
-        this.lastModified.toISOString(),
-        this.id
-      ]);
-    }
-  }
-
-
-  public async submit() {
+  public submit(): void {
     if (this.status === 'submitted') {
       throw new Error('Time entry has already been submitted');
     }
@@ -121,6 +63,5 @@ export class TimeEntry {
     }
 
     this.status = 'submitted';
-    await this.save();
   }
 }

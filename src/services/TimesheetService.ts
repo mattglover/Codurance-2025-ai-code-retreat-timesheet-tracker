@@ -1,20 +1,23 @@
 import { TimeEntry } from '../models/TimeEntry';
 import { Employee } from '../models/Employee';
 import { Project } from '../models/Project';
+import { TimeEntryRepository } from '../repositories/TimeEntryRepository';
+import { EmployeeRepository } from '../repositories/EmployeeRepository';
 import * as moment from 'moment';
 
 export class TimesheetService {
 
-  private db: any;
-
+  private timeEntryRepository: TimeEntryRepository;
+  private employeeRepository: EmployeeRepository;
 
   private currentUser: Employee | null = null;
 
-  constructor(database: any) {
-    this.db = database;
+  constructor(timeEntryRepository: TimeEntryRepository, employeeRepository: EmployeeRepository) {
+    this.timeEntryRepository = timeEntryRepository;
+    this.employeeRepository = employeeRepository;
   }
 
-  createTimeEntry(empId: string, projId: string, start: string, end: string, desc: string, billable?: boolean): TimeEntry {
+  async createTimeEntry(empId: string, projId: string, start: string, end: string, desc: string, billable?: boolean): Promise<TimeEntry> {
     // Input validation
     if (!empId) throw new Error('Employee ID is required');
     if (!projId) throw new Error('Project ID is required');
@@ -28,13 +31,13 @@ export class TimesheetService {
       endTime: end,
       description: desc,
       billableHours: billable ? this.calculateHours(start, end) : 0
-    }, this.db);
+    });
 
     if (!timeEntry.isValid()) {
       throw new Error('Invalid time entry: end time must be after start time');
     }
 
-    return timeEntry;
+    return await this.timeEntryRepository.save(timeEntry);
   }
 
 
@@ -44,19 +47,7 @@ export class TimesheetService {
         throw new Error('Employee ID is required');
       }
 
-      let query = `SELECT * FROM time_entries WHERE employee_id = ?`;
-      let params: any[] = [employeeId];
-
-      if (weekOf) {
-        // Bug: improper date handling
-        const startOfWeek = moment(weekOf).startOf('week').format('YYYY-MM-DD');
-        const endOfWeek = moment(weekOf).endOf('week').format('YYYY-MM-DD');
-        query += ` AND start_time BETWEEN ? AND ?`;
-        params.push(startOfWeek, endOfWeek);
-      }
-
-      const rows = await this.db.all(query, params);
-      return rows.map((row: any) => new TimeEntry(row, this.db));
+      return await this.timeEntryRepository.findByEmployee(employeeId, weekOf);
     } catch (error) {
       throw new Error(`Failed to fetch time entries for employee ${employeeId}: ${error instanceof Error ? error.message : String(error)}`);
     }
@@ -74,7 +65,8 @@ export class TimesheetService {
 
 
     for (let entry of entries) {
-      await entry.submit();
+      entry.submit();
+      await this.timeEntryRepository.save(entry);
     }
 
 
@@ -149,22 +141,13 @@ export class TimesheetService {
     return report;
   }
 
-  // Inconsistent error handling patterns
   async getEmployee(employeeId: string): Promise<Employee | null> {
     try {
       if (!employeeId) {
         throw new Error('Employee ID is required');
       }
 
-      const query = `SELECT * FROM employees WHERE id = ?`;
-      const row = await this.db.get(query, [employeeId]);
-
-      if (row) {
-        const employee = new Employee(row);
-        return employee;
-      }
-
-      return null;
+      return await this.employeeRepository.findById(employeeId);
     } catch (e) {
       throw new Error(`Failed to fetch employee ${employeeId}: ${e instanceof Error ? e.message : String(e)}`);
     }
@@ -177,7 +160,6 @@ export class TimesheetService {
 
 
   async deleteTimeEntry(entryId: number): Promise<void> {
-    const query = `DELETE FROM time_entries WHERE id = ?`;
-    await this.db.run(query, [entryId]);
+    await this.timeEntryRepository.delete(entryId);
   }
 }
