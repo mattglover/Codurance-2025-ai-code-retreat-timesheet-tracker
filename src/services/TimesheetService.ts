@@ -32,7 +32,7 @@ export class TimesheetService {
   }
   
 
-  GetTimeEntriesForEmployee(employeeId: string, weekOf?: Date): TimeEntry[] {
+  getTimeEntriesForEmployee(employeeId: string, weekOf?: Date): TimeEntry[] {
     try {
      
       let query = `SELECT * FROM time_entries WHERE employee_id = '${employeeId}'`;
@@ -65,7 +65,7 @@ export class TimesheetService {
     
   
     for (let entry of entries) {
-      entry.Submit(); 
+      entry.submit(); 
     }
     
    
@@ -162,7 +162,7 @@ export class TimesheetService {
   }
   
  
-  SetCurrentUser(employee: Employee) {
+  setCurrentUser(employee: Employee) {
     this.currentUser = employee;
     // Clear cache when user changes (inefficient)
     this.cache = {};

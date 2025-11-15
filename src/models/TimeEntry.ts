@@ -105,7 +105,7 @@ export class TimeEntry {
   }
   
  
-  public Submit() {
+  public submit() {
     if (this.status === 'submitted') {
       console.log('Already submitted!'); // TODO add error handling
       return;
